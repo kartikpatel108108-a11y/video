@@ -162,6 +162,14 @@
             background: #3ab0d6;
         }
         
+        .btn-warning {
+            background: var(--warning);
+        }
+        
+        .btn-warning:hover {
+            background: #e01a6f;
+        }
+        
         .character-list {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -193,17 +201,33 @@
             padding: 20px;
             text-align: center;
             margin-top: 20px;
-            min-height: 200px;
+            min-height: 300px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            position: relative;
         }
         
         .video-placeholder {
             font-size: 4rem;
             color: var(--gray);
             margin-bottom: 15px;
+        }
+        
+        .generated-video {
+            width: 100%;
+            max-width: 600px;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .video-controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
         
         .audio-player {
@@ -354,6 +378,42 @@
             visibility: visible;
             opacity: 1;
         }
+        
+        .video-generation-progress {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin: 15px 0;
+            overflow: hidden;
+            display: none;
+        }
+        
+        .progress-steps {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            font-size: 0.8rem;
+        }
+        
+        .progress-fill {
+            height: 4px;
+            background: var(--success);
+            width: 0%;
+            transition: width 0.5s;
+        }
+        
+        .download-section {
+            margin-top: 20px;
+            text-align: center;
+            display: none;
+        }
+        
+        .video-info {
+            margin-top: 15px;
+            text-align: left;
+            width: 100%;
+            max-width: 600px;
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -458,12 +518,41 @@
             
             <div class="card">
                 <h2><i class="fas fa-eye"></i> Video Preview</h2>
+                
+                <div class="video-generation-progress" id="video-generation-progress">
+                    <div class="progress-steps">
+                        <span>Processing Script</span>
+                        <span>Generating Audio</span>
+                        <span>Creating Visuals</span>
+                        <span>Rendering Video</span>
+                    </div>
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                
                 <div class="video-preview" id="video-preview">
-                    <div class="video-placeholder">
+                    <div class="video-placeholder" id="video-placeholder">
                         <i class="fas fa-video"></i>
                     </div>
                     <p>Your generated video will appear here</p>
-                    <div id="video-info"></div>
+                    
+                    <video class="generated-video" id="generated-video" controls>
+                        Your browser does not support the video tag.
+                    </video>
+                    
+                    <div class="video-info" id="video-info"></div>
+                    
+                    <div class="video-controls" id="video-controls">
+                        <!-- Video controls will be added here -->
+                    </div>
+                    
+                    <div class="download-section" id="download-section">
+                        <button class="btn btn-success" id="download-video">
+                            <i class="fas fa-download"></i> Download Video
+                        </button>
+                        <button class="btn btn-accent" id="share-video">
+                            <i class="fas fa-share"></i> Share Video
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -612,21 +701,24 @@
                 title: "The Beginning",
                 series: "Fantasy Adventure",
                 date: "2023-10-15",
-                duration: "2:15"
+                duration: "2:15",
+                url: "#"
             },
             {
                 id: 2,
                 title: "Space Odyssey",
                 series: "Sci-Fi Chronicles",
                 date: "2023-10-10",
-                duration: "3:45"
+                duration: "3:45",
+                url: "#"
             },
             {
                 id: 3,
                 title: "Laugh Out Loud",
                 series: "Comedy Central",
                 date: "2023-10-05",
-                duration: "1:30"
+                duration: "1:30",
+                url: "#"
             }
         ];
         
@@ -667,6 +759,14 @@
                         <span class="history-date">${video.date}</span>
                     </div>
                     <div>Series: ${video.series} | Duration: ${video.duration}</div>
+                    <div style="margin-top: 10px;">
+                        <button class="btn" onclick="downloadVideo('${video.url}', '${video.title}')">
+                            <i class="fas fa-download"></i> Download
+                        </button>
+                        <button class="btn btn-accent" onclick="playVideo('${video.url}')">
+                            <i class="fas fa-play"></i> Play
+                        </button>
+                    </div>
                 `;
                 videoHistoryContainer.appendChild(historyItem);
             });
@@ -689,58 +789,188 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
             btn.disabled = true;
             
-            // Simulate video generation (in a real app, this would be an API call)
-            setTimeout(() => {
-                // Update video preview
-                const videoPreview = document.getElementById('video-preview');
-                const videoInfo = document.getElementById('video-info');
+            // Show progress bar
+            const progressBar = document.getElementById('video-generation-progress');
+            const progressFill = document.getElementById('progress-fill');
+            progressBar.style.display = 'block';
+            progressFill.style.width = '0%';
+            
+            // Simulate video generation with progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 25;
+                progressFill.style.width = `${progress}%`;
                 
-                videoInfo.innerHTML = `
-                    <div style="margin-top: 15px;">
+                if (progress >= 100) {
+                    clearInterval(progressInterval);
+                    
+                    // Create a mock video (in a real app, this would be from an API)
+                    const videoUrl = generateMockVideo(script, series, background);
+                    
+                    // Update video preview
+                    const videoPreview = document.getElementById('video-preview');
+                    const videoPlaceholder = document.getElementById('video-placeholder');
+                    const generatedVideo = document.getElementById('generated-video');
+                    const videoInfo = document.getElementById('video-info');
+                    const videoControls = document.getElementById('video-controls');
+                    const downloadSection = document.getElementById('download-section');
+                    
+                    videoPlaceholder.style.display = 'none';
+                    generatedVideo.style.display = 'block';
+                    generatedVideo.src = videoUrl;
+                    
+                    videoInfo.innerHTML = `
                         <p><strong>Series:</strong> ${series === 'new' ? 'New Series' : document.getElementById('video-series').options[document.getElementById('video-series').selectedIndex].text}</p>
                         <p><strong>Background:</strong> ${document.getElementById('background-scene').options[document.getElementById('background-scene').selectedIndex].text}</p>
                         <p><strong>Duration:</strong> 2:45</p>
-                    </div>
-                    <button class="btn" style="margin-top: 15px;"><i class="fas fa-download"></i> Download Video</button>
-                `;
-                
-                // Show notification
-                const notification = document.getElementById('notification');
-                notification.textContent = 'Video generated successfully!';
-                notification.classList.add('show');
-                
-                setTimeout(() => {
-                    notification.classList.remove('show');
-                }, 3000);
-                
-                // Reset button
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-                
-                // Add to history (in a real app, this would be saved to a database)
-                const videoHistoryContainer = document.getElementById('video-history-list');
-                const newVideo = {
-                    id: sampleVideos.length + 1,
-                    title: `Video ${sampleVideos.length + 1}`,
-                    series: series === 'new' ? 'New Series' : document.getElementById('video-series').options[document.getElementById('video-series').selectedIndex].text,
-                    date: new Date().toISOString().split('T')[0],
-                    duration: '2:45'
-                };
-                
-                const historyItem = document.createElement('div');
-                historyItem.className = 'history-item';
-                historyItem.innerHTML = `
-                    <div class="history-title">
-                        ${newVideo.title}
-                        <span class="history-date">${newVideo.date}</span>
-                    </div>
-                    <div>Series: ${newVideo.series} | Duration: ${newVideo.duration}</div>
-                `;
-                
-                videoHistoryContainer.insertBefore(historyItem, videoHistoryContainer.firstChild);
-                
-            }, 2000);
+                        <p><strong>Characters:</strong> ${sampleCharacters.filter(c => c.series === series || series === 'new').map(c => c.name).join(', ')}</p>
+                    `;
+                    
+                    downloadSection.style.display = 'block';
+                    
+                    // Set up download button
+                    document.getElementById('download-video').onclick = function() {
+                        downloadVideo(videoUrl, `AI_Video_${Date.now()}.mp4`);
+                    };
+                    
+                    // Set up share button
+                    document.getElementById('share-video').onclick = function() {
+                        shareVideo(videoUrl);
+                    };
+                    
+                    // Hide progress bar
+                    setTimeout(() => {
+                        progressBar.style.display = 'none';
+                    }, 1000);
+                    
+                    // Show notification
+                    const notification = document.getElementById('notification');
+                    notification.textContent = 'Video generated successfully!';
+                    notification.classList.add('show');
+                    
+                    setTimeout(() => {
+                        notification.classList.remove('show');
+                    }, 3000);
+                    
+                    // Reset button
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    
+                    // Add to history (in a real app, this would be saved to a database)
+                    addVideoToHistory(script, series, background, videoUrl);
+                }
+            }, 800);
         });
+        
+        // Generate a mock video URL (in a real app, this would come from your AI service)
+        function generateMockVideo(script, series, background) {
+            // In a real implementation, this would be the URL from your AI video generation service
+            // For demo purposes, we'll use a placeholder video
+            return "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4";
+        }
+        
+        // Download video function
+        function downloadVideo(url, filename) {
+            // In a real implementation, this would download the actual generated video
+            // For demo purposes, we'll simulate a download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            // Show notification
+            const notification = document.getElementById('notification');
+            notification.textContent = 'Download started!';
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Share video function
+        function shareVideo(url) {
+            // In a real implementation, this would use the Web Share API or copy to clipboard
+            if (navigator.share) {
+                navigator.share({
+                    title: 'AI Generated Video',
+                    text: 'Check out this AI-generated video!',
+                    url: url,
+                })
+                .then(() => console.log('Successful share'))
+                .catch((error) => console.log('Error sharing', error));
+            } else {
+                // Fallback: copy to clipboard
+                navigator.clipboard.writeText(url).then(() => {
+                    const notification = document.getElementById('notification');
+                    notification.textContent = 'Video link copied to clipboard!';
+                    notification.classList.add('show');
+                    
+                    setTimeout(() => {
+                        notification.classList.remove('show');
+                    }, 3000);
+                });
+            }
+        }
+        
+        // Play video from history
+        function playVideo(url) {
+            // Switch to video generation tab and play the video
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            document.querySelector('[data-tab="video-generation"]').classList.add('active');
+            document.getElementById('video-generation').classList.add('active');
+            
+            const videoPlaceholder = document.getElementById('video-placeholder');
+            const generatedVideo = document.getElementById('generated-video');
+            const downloadSection = document.getElementById('download-section');
+            
+            videoPlaceholder.style.display = 'none';
+            generatedVideo.style.display = 'block';
+            generatedVideo.src = url;
+            downloadSection.style.display = 'block';
+            
+            // Set up download button for this video
+            document.getElementById('download-video').onclick = function() {
+                downloadVideo(url, `AI_Video_${Date.now()}.mp4`);
+            };
+        }
+        
+        // Add video to history
+        function addVideoToHistory(script, series, background, url) {
+            const videoHistoryContainer = document.getElementById('video-history-list');
+            const newVideo = {
+                id: sampleVideos.length + 1,
+                title: `Video ${sampleVideos.length + 1}`,
+                series: series === 'new' ? 'New Series' : document.getElementById('video-series').options[document.getElementById('video-series').selectedIndex].text,
+                date: new Date().toISOString().split('T')[0],
+                duration: '2:45',
+                url: url
+            };
+            
+            const historyItem = document.createElement('div');
+            historyItem.className = 'history-item';
+            historyItem.innerHTML = `
+                <div class="history-title">
+                    ${newVideo.title}
+                    <span class="history-date">${newVideo.date}</span>
+                </div>
+                <div>Series: ${newVideo.series} | Duration: ${newVideo.duration}</div>
+                <div style="margin-top: 10px;">
+                    <button class="btn" onclick="downloadVideo('${newVideo.url}', '${newVideo.title}')">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <button class="btn btn-accent" onclick="playVideo('${newVideo.url}')">
+                        <i class="fas fa-play"></i> Play
+                    </button>
+                </div>
+            `;
+            
+            videoHistoryContainer.insertBefore(historyItem, videoHistoryContainer.firstChild);
+        }
         
         // Generate audio button functionality
         document.getElementById('generate-audio').addEventListener('click', function() {
